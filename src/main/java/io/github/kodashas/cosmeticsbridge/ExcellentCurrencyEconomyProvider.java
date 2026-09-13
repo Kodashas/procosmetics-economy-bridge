@@ -75,6 +75,14 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
                 "ExcellentEconomy has no currency with id '" + currencyId + "'."));
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>For an offline player this can only answer from ExcellentEconomy's cache. When the
+     * cache has nothing, there is no synchronous way to find out and the contract forces a
+     * number, so this returns 0 — which ProCosmetics reads as "cannot afford it". The miss is
+     * logged, because a silent 0 looks exactly like a real empty balance.
+     */
     @Override
     public int getCoins(User user) {
         Player player = Bukkit.getPlayer(user.getUniqueId());
@@ -83,7 +91,13 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
         }
         return economy.getCachedUserData(user.getUniqueId())
                 .map(data -> (int) data.getBalance(currency))
-                .orElse(0);
+                .orElseGet(() -> {
+                    plugin.getLogger().log(
+                            Level.WARNING,
+                            "No cached {0} balance for offline user {1}; reporting 0 to ProCosmetics",
+                            new Object[] {currencyId, user.getUniqueId()});
+                    return 0;
+                });
     }
 
     @Override
@@ -153,20 +167,26 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
     private void announceWithdraw(User user, int amount, boolean success) {
         sendMessage(user, success ? purchaseSuccessMessage : withdrawFailureMessage, amount);
         if (!success) {
+            // No balance lookup here on purpose: this runs on whichever thread completed the
+            // withdrawal, and reading the balance again would touch the server off-thread.
             plugin.getLogger().log(
                     Level.WARNING,
-                    "Failed to withdraw {0} {1} for a ProCosmetics purchase by {2}; balance is {3}",
-                    new Object[] {amount, currencyId, user.getUniqueId(), getCoins(user)});
+                    "Failed to withdraw {0} {1} for a ProCosmetics purchase by {2}",
+                    new Object[] {amount, currencyId, user.getUniqueId()});
         }
     }
 
     @Override
     public void sendInsufficientCoinsMessage(User user, int amount) {
-        int missing = Math.max(amount - getCoins(user), 0);
-        runOnMainThread(() -> user.sendMessage(user.translate(
-                "player.not_enough_coins",
-                Placeholder.unparsed("amount", String.valueOf(missing)),
-                Placeholder.unparsed("currency", currencyName))));
+        // getCoins() reads the balance and may look the player up, so it runs on the main
+        // thread together with the message rather than on whatever thread called us.
+        runOnMainThread(() -> {
+            int missing = Math.max(amount - getCoins(user), 0);
+            user.sendMessage(user.translate(
+                    "player.not_enough_coins",
+                    Placeholder.unparsed("amount", String.valueOf(missing)),
+                    Placeholder.unparsed("currency", currencyName)));
+        });
     }
 
     private void sendMessage(User user, String message, int amount) {

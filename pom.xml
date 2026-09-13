@@ -48,6 +48,7 @@
       <version>local</version>
       <scope>system</scope>
       <systemPath>${project.basedir}/libs/ExcellentEconomy.jar</systemPath>
+    </dependency>
     <dependency>
       <groupId>su.nightexpress</groupId>
       <artifactId>nightcore</artifactId>
