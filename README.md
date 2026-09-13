@@ -7,6 +7,9 @@ If your server already runs ExcellentEconomy and you want cosmetics paid for wit
 players actually earn — coins, tokens, gems, whatever you have configured — this is the piece
 in between.
 
+ProCosmetics can already talk to Vault, but Vault exposes a single balance. ExcellentEconomy
+has named currencies, and this plugin points cosmetics at exactly one of them.
+
 ## What it does
 
 ProCosmetics accepts exactly one `EconomyProvider`. This plugin registers its own at enable
@@ -57,24 +60,30 @@ The "not enough coins" message is deliberately **not** configured here. It comes
 ProCosmetics' own `player.not_enough_coins` translation key, fed the same two placeholders, so
 it follows your ProCosmetics language file and stays consistent with its other menus.
 
-The currency is resolved at enable time, before registration. A wrong `currency-id` fails the
-enable with a clear error instead of failing later in front of a player.
+The currency is resolved when ProCosmetics registers the provider, during enable. A wrong
+`currency-id` therefore fails the enable with a clear error instead of failing later, in front
+of a player.
 
 ## Building
 
-ProCosmetics, ExcellentEconomy and nightcore are free, but none of them is published to a Maven repository,
-so they cannot be resolved automatically. Supply them from a server that has them installed:
+All three plugins this compiles against are free to download, but none of them publishes to a
+Maven repository, so they cannot be resolved automatically. Put their jars in `libs/` first.
+
+The easiest source is a server that already runs them:
 
 ```bash
 scripts/fetch-libs.sh /path/to/server/plugins
 mvn clean package
 ```
 
-`fetch-libs.sh` copies those three jars into `libs/`, which is gitignored — they are other
-people's plugins and are not redistributed here. Paper API and fastutil come from Maven
-Central.
+Otherwise download them by hand and name them `libs/ProCosmetics.jar`,
+`libs/ExcellentEconomy.jar` and `libs/nightcore.jar`.
 
-Output: `target/ProCosmeticsEconomyBridge-1.2.0.jar`.
+`libs/` is gitignored — those are other people's plugins and are not redistributed here.
+`paper-api` comes from the PaperMC repository and fastutil from Maven Central; both are
+resolved by Maven.
+
+Output: `target/ProCosmeticsEconomyBridge-1.0.0.jar`.
 
 ## Installing
 
