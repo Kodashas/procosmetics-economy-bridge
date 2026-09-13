@@ -93,7 +93,7 @@ newest one on the repository while the plugin is at 2.0.7. Every type this bridg
 an identical signature in both, so it compiles against 2.0.1 — worth re-checking before moving
 to a newer ProCosmetics.
 
-Output: `target/ProCosmeticsEconomyBridge-1.0.1.jar`.
+Output: `target/ProCosmeticsEconomyBridge-1.0.2.jar`.
 
 GitHub Actions runs the same build on every push and pull request. Pushing a `v*` tag makes it
 build from that tag and attach the jar to the matching release, so a release asset always comes
