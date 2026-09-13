@@ -45,19 +45,16 @@ public final class EconomyBridgePlugin extends JavaPlugin {
                 getConfig().getString("withdraw-failure-message", DEFAULT_WITHDRAW_FAILURE);
         boolean debug = getConfig().getBoolean("debug", false);
 
-        ExcellentCurrencyEconomyProvider provider = new ExcellentCurrencyEconomyProvider(
+        // register() makes ProCosmetics call hook(), which resolves the currency, so a bad
+        // currency-id fails the enable instead of failing later on a player's purchase.
+        proCosmetics.getEconomyManager().register(new ExcellentCurrencyEconomyProvider(
                 excellentEconomy,
                 currencyId,
                 currencyName,
                 purchaseSuccessMessage,
                 withdrawFailureMessage,
                 debug,
-                this);
-
-        // Resolve the currency before registering, so a bad currency-id fails the enable
-        // instead of failing later on a player's purchase.
-        provider.hook(proCosmetics);
-        proCosmetics.getEconomyManager().register(provider);
+                this));
 
         getLogger().info("ProCosmetics economy is now backed by ExcellentEconomy currency: " + currencyId);
     }

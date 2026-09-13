@@ -1,8 +1,10 @@
 package io.github.kodashas.cosmeticsbridge;
 
 import it.unimi.dsi.fastutil.booleans.BooleanIntPair;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.logging.Level;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -28,7 +30,7 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
 
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
 
-    private final ExcellentEconomyAPI excellentEconomy;
+    private final ExcellentEconomyAPI economy;
     private final String currencyId;
     private final String currencyName;
     private final String purchaseSuccessMessage;
@@ -36,17 +38,18 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
     private final boolean debug;
     private final JavaPlugin plugin;
 
+    /** Resolved in {@link #hook(ProCosmetics)}, which ProCosmetics calls on registration. */
     private ExcellentCurrency currency;
 
     ExcellentCurrencyEconomyProvider(
-            ExcellentEconomyAPI excellentEconomy,
+            ExcellentEconomyAPI economy,
             String currencyId,
             String currencyName,
             String purchaseSuccessMessage,
             String withdrawFailureMessage,
             boolean debug,
             JavaPlugin plugin) {
-        this.excellentEconomy = excellentEconomy;
+        this.economy = economy;
         this.currencyId = currencyId;
         this.currencyName = currencyName;
         this.purchaseSuccessMessage = purchaseSuccessMessage;
@@ -60,20 +63,25 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
         return "ExcellentEconomy (" + currencyId + ")";
     }
 
-    /** Resolves the configured currency. Called once at enable, before registration. */
+    /**
+     * Called by ProCosmetics when the provider is registered.
+     *
+     * @throws IllegalStateException if ExcellentEconomy has no currency with the configured
+     *     id, so a typo fails the enable instead of failing in front of a player later
+     */
+    @Override
     public void hook(ProCosmetics proCosmetics) throws IllegalStateException {
-        this.currency = excellentEconomy.currencyById(currencyId)
-                .orElseThrow(() -> new IllegalStateException(
-                        "ExcellentEconomy has no currency with id '" + currencyId + "'."));
+        this.currency = economy.currencyById(currencyId).orElseThrow(() -> new IllegalStateException(
+                "ExcellentEconomy has no currency with id '" + currencyId + "'."));
     }
 
     @Override
     public int getCoins(User user) {
         Player player = Bukkit.getPlayer(user.getUniqueId());
         if (player != null) {
-            return (int) excellentEconomy.getBalance(player, currency);
+            return (int) economy.getBalance(player, currency);
         }
-        return excellentEconomy.getCachedUserData(user.getUniqueId())
+        return economy.getCachedUserData(user.getUniqueId())
                 .map(data -> (int) data.getBalance(currency))
                 .orElse(0);
     }
@@ -83,74 +91,73 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
         Player player = Bukkit.getPlayer(user.getUniqueId());
         if (player != null) {
             return CompletableFuture.completedFuture(
-                    BooleanIntPair.of(true, (int) excellentEconomy.getBalance(player, currency)));
+                    BooleanIntPair.of(true, (int) economy.getBalance(player, currency)));
         }
-        return excellentEconomy.getBalanceAsync(user.getUniqueId(), currency)
+        return economy.getBalanceAsync(user.getUniqueId(), currency)
                 .thenApply(balance -> BooleanIntPair.of(true, (int) (double) balance));
     }
 
     @Override
     public CompletableFuture<Boolean> addCoinsAsync(User user, int amount) {
-        Player player = Bukkit.getPlayer(user.getUniqueId());
-        if (player != null) {
-            boolean success = excellentEconomy.deposit(player, currency, amount);
-            logDebug(user, amount, "deposit", success ? "SUCCESS" : "FAILURE");
-            return CompletableFuture.completedFuture(success);
-        }
-        return excellentEconomy.depositAsync(user.getUniqueId(), currency, amount)
-                .thenApply(result -> {
-                    boolean success = result == OperationResult.SUCCESS;
-                    logDebug(user, amount, "deposit", success ? "SUCCESS" : "FAILURE");
-                    return success;
-                });
+        return apply(user, amount, "deposit",
+                player -> economy.deposit(player, currency, amount),
+                uuid -> economy.depositAsync(uuid, currency, amount));
     }
 
     @Override
     public CompletableFuture<Boolean> setCoinsAsync(User user, int amount) {
-        Player player = Bukkit.getPlayer(user.getUniqueId());
-        if (player != null) {
-            boolean success = excellentEconomy.setBalance(player, currency, amount);
-            logDebug(user, amount, "set-balance", success ? "SUCCESS" : "FAILURE");
-            return CompletableFuture.completedFuture(success);
-        }
-        return excellentEconomy.setBalanceAsync(user.getUniqueId(), currency, amount)
-                .thenApply(result -> {
-                    boolean success = result == OperationResult.SUCCESS;
-                    logDebug(user, amount, "set-balance", success ? "SUCCESS" : "FAILURE");
-                    return success;
-                });
+        return apply(user, amount, "set-balance",
+                player -> economy.setBalance(player, currency, amount),
+                uuid -> economy.setBalanceAsync(uuid, currency, amount));
     }
 
     @Override
     public CompletableFuture<Boolean> removeCoinsAsync(User user, int amount) {
-        Player player = Bukkit.getPlayer(user.getUniqueId());
-        if (player != null) {
-            boolean success = excellentEconomy.withdraw(player, currency, amount);
-            if (success) {
-                sendPurchaseSuccessMessage(user, amount);
-                logDebug(user, amount, "withdraw", "SUCCESS");
-            } else {
-                sendWithdrawFailureMessage(user, amount);
-                logWithdrawFailure(user, amount, "balance=" + getCoins(user));
-                logDebug(user, amount, "withdraw", "FAILURE");
-            }
-            return CompletableFuture.completedFuture(success);
-        }
-        return excellentEconomy.withdrawAsync(user.getUniqueId(), currency, amount)
-                .thenCompose(result -> completeWithdraw(user, amount, result));
+        return apply(user, amount, "withdraw",
+                player -> economy.withdraw(player, currency, amount),
+                uuid -> economy.withdrawAsync(uuid, currency, amount))
+                .thenApply(success -> {
+                    announceWithdraw(user, amount, success);
+                    return success;
+                });
     }
 
-    private CompletionStage<Boolean> completeWithdraw(User user, int amount, OperationResult result) {
-        boolean success = result == OperationResult.SUCCESS;
-        if (success) {
-            sendPurchaseSuccessMessage(user, amount);
-            logDebug(user, amount, "withdraw", "SUCCESS");
-        } else {
-            sendWithdrawFailureMessage(user, amount);
-            logWithdrawFailure(user, amount, String.valueOf(result));
-            logDebug(user, amount, "withdraw", "FAILURE");
+    /**
+     * Runs {@code online} for a player who is on the server and {@code offline} for one who is
+     * not, normalising both results to a boolean and logging the outcome when debug is on.
+     */
+    private CompletableFuture<Boolean> apply(
+            User user,
+            int amount,
+            String action,
+            Predicate<Player> online,
+            Function<UUID, CompletableFuture<OperationResult>> offline) {
+        Player player = Bukkit.getPlayer(user.getUniqueId());
+        if (player != null) {
+            return CompletableFuture.completedFuture(logged(user, amount, action, online.test(player)));
         }
-        return CompletableFuture.completedFuture(success);
+        return offline.apply(user.getUniqueId())
+                .thenApply(result -> logged(user, amount, action, result == OperationResult.SUCCESS));
+    }
+
+    private boolean logged(User user, int amount, String action, boolean success) {
+        if (debug) {
+            plugin.getLogger().log(
+                    Level.INFO,
+                    "[debug] action={0}, currency={1}, user={2}, amount={3}, outcome={4}",
+                    new Object[] {action, currencyId, user.getUniqueId(), amount, success ? "SUCCESS" : "FAILURE"});
+        }
+        return success;
+    }
+
+    private void announceWithdraw(User user, int amount, boolean success) {
+        sendMessage(user, success ? purchaseSuccessMessage : withdrawFailureMessage, amount);
+        if (!success) {
+            plugin.getLogger().log(
+                    Level.WARNING,
+                    "Failed to withdraw {0} {1} for a ProCosmetics purchase by {2}; balance is {3}",
+                    new Object[] {amount, currencyId, user.getUniqueId(), getCoins(user)});
+        }
     }
 
     @Override
@@ -162,15 +169,7 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
                 Placeholder.unparsed("currency", currencyName))));
     }
 
-    private void sendPurchaseSuccessMessage(User user, int amount) {
-        sendConfiguredMessage(user, purchaseSuccessMessage, amount);
-    }
-
-    private void sendWithdrawFailureMessage(User user, int amount) {
-        sendConfiguredMessage(user, withdrawFailureMessage, amount);
-    }
-
-    private void sendConfiguredMessage(User user, String message, int amount) {
+    private void sendMessage(User user, String message, int amount) {
         if (message == null || message.isEmpty()) {
             return;
         }
@@ -186,22 +185,5 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
         } else {
             Bukkit.getScheduler().runTask(plugin, action);
         }
-    }
-
-    private void logDebug(User user, int amount, String action, String outcome) {
-        if (!debug) {
-            return;
-        }
-        plugin.getLogger().log(
-                Level.INFO,
-                "[debug] action={0}, currency={1}, user={2}, amount={3}, outcome={4}",
-                new Object[] {action, currencyId, user.getUniqueId(), amount, outcome});
-    }
-
-    private void logWithdrawFailure(User user, int amount, String reason) {
-        plugin.getLogger().log(
-                Level.WARNING,
-                "Failed to withdraw {0} {1} for ProCosmetics purchase of user {2}: {3}",
-                new Object[] {amount, currencyId, user.getUniqueId(), reason});
     }
 }

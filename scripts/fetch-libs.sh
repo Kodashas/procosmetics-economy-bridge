@@ -25,7 +25,7 @@ copy_one() {
     return 1
   fi
   cp "$src" "$HERE/libs/$target"
-  echo "$target  <-  $(basename "$src")  ($(sha256sum "$src" | cut -c1-16)...)"
+  echo "$target  <-  $(basename "$src")"
 }
 
 copy_one 'ProCosmetics*.jar' 'ProCosmetics.jar'
