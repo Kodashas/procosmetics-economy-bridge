@@ -21,8 +21,19 @@ Every operation has two paths:
 - player online → synchronous ExcellentEconomy call
 - player offline → the async, UUID-keyed call
 
-ProCosmetics may call the provider off the main thread, so anything that touches a player is
-pushed back onto the main thread first.
+ProCosmetics may call the provider off the main thread. Balance operations run on the calling
+thread, which ExcellentEconomy supports; only messages to a player are pushed back onto the
+main thread.
+
+A withdrawal checks the balance first. ExcellentEconomy clamps a balance at zero and still
+reports success, so without that check taking more than a player owns would read as a paid
+purchase. The check and the withdrawal are two operations rather than one atomic one, so a
+balance change landing between them can still slip through.
+
+The purchase message is sent from listeners on ProCosmetics' three purchase events, not from
+the provider: `removeCoinsAsync` is a generic balance operation that an admin
+`/procosmetics remove coins` also goes through, and announcing a payment there told players
+they had bought something when nothing had been bought.
 
 ## Requirements
 

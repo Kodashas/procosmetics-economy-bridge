@@ -25,8 +25,11 @@ import su.nightexpress.excellenteconomy.api.currency.operation.OperationResult;
  *
  * <p>Every operation has a synchronous path for online players and an asynchronous path
  * keyed by UUID for offline ones, mirroring what ExcellentEconomy itself offers.
- * ProCosmetics may call these off the main thread, so anything that touches a player is
- * pushed back onto the main thread.
+ *
+ * <p>ProCosmetics may call these off the main thread. The balance operations run on the
+ * calling thread, which ExcellentEconomy supports — balances live in concurrent structures
+ * and its own {@code ChangeBalanceEvent} marks itself asynchronous when it is raised off the
+ * primary thread — but anything that messages a player is pushed onto the main thread first.
  */
 final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
 
@@ -36,7 +39,6 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
     private final ExcellentCurrency currency;
     private final String currencyId;
     private final String currencyName;
-    private final String purchaseSuccessMessage;
     private final boolean debug;
     private final JavaPlugin plugin;
 
@@ -44,14 +46,12 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
             ExcellentEconomyAPI economy,
             ExcellentCurrency currency,
             String currencyName,
-            String purchaseSuccessMessage,
             boolean debug,
             JavaPlugin plugin) {
         this.economy = economy;
         this.currency = Objects.requireNonNull(currency, "currency");
         this.currencyId = currency.getId();
         this.currencyName = currencyName;
-        this.purchaseSuccessMessage = purchaseSuccessMessage;
         this.debug = debug;
         this.plugin = plugin;
     }
@@ -123,15 +123,45 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
                 uuid -> economy.setBalanceAsync(uuid, currency, amount));
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The balance is checked here rather than left to ExcellentEconomy: its withdrawal
+     * clamps the balance at zero and still reports {@code SUCCESS}, so taking more than a
+     * player owns would look like a paid purchase. ProCosmetics' own Vault provider refuses
+     * an over-withdrawal the same way.
+     *
+     * <p>Nothing is sent to the player from here. ProCosmetics' purchase menus call
+     * {@link #sendInsufficientCoinsMessage} from their own completion handler, and an admin
+     * {@code /procosmetics remove coins} ends up in this same method.
+     */
     @Override
     public CompletableFuture<Boolean> removeCoinsAsync(User user, int amount) {
-        return apply(user, amount, "withdraw",
-                player -> economy.withdraw(player, currency, amount),
-                uuid -> economy.withdrawAsync(uuid, currency, amount))
-                .thenApply(success -> {
-                    announceWithdraw(user, amount, success);
-                    return success;
-                });
+        // ponytail: check-then-withdraw, not one atomic operation. A balance change that lands
+        // between the two still slips through; closing that needs a withdrawIfEnough() on the
+        // ExcellentEconomy side.
+        Player player = Bukkit.getPlayer(user.getUniqueId());
+        if (player != null) {
+            boolean enough = economy.getBalance(player, currency) >= amount;
+            return CompletableFuture.completedFuture(withdrawn(
+                    user, amount, enough && economy.withdraw(player, currency, amount)));
+        }
+        UUID uuid = user.getUniqueId();
+        return economy.getBalanceAsync(uuid, currency)
+                .thenCompose(balance -> balance >= amount
+                        ? economy.withdrawAsync(uuid, currency, amount)
+                        : CompletableFuture.completedFuture(OperationResult.FAILURE))
+                .thenApply(result -> withdrawn(user, amount, result == OperationResult.SUCCESS));
+    }
+
+    private boolean withdrawn(User user, int amount, boolean success) {
+        if (!success) {
+            plugin.getLogger().log(
+                    Level.WARNING,
+                    "Failed to withdraw {0} {1} from {2}",
+                    new Object[] {amount, currencyId, user.getUniqueId()});
+        }
+        return logged(user, amount, "withdraw", success);
     }
 
     /**
@@ -162,21 +192,6 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
         return success;
     }
 
-    private void announceWithdraw(User user, int amount, boolean success) {
-        if (success) {
-            sendMessage(user, purchaseSuccessMessage, amount);
-            return;
-        }
-        // Nothing is sent to the player here: ProCosmetics' purchase menu already calls
-        // sendInsufficientCoinsMessage from its own completion handler, so a second message
-        // would double up. No balance lookup either — this runs on whichever thread completed
-        // the withdrawal.
-        plugin.getLogger().log(
-                Level.WARNING,
-                "Failed to withdraw {0} {1} for a ProCosmetics purchase by {2}",
-                new Object[] {amount, currencyId, user.getUniqueId()});
-    }
-
     @Override
     public void sendInsufficientCoinsMessage(User user, int amount) {
         // getCoins() reads the balance and may look the player up, so it runs on the main
@@ -185,13 +200,6 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
                 "player.not_enough_coins",
                 Placeholder.unparsed("amount", String.valueOf(Math.max(amount - getCoins(user), 0))),
                 Placeholder.unparsed("currency", currencyName))));
-    }
-
-    private void sendMessage(User user, String message, int amount) {
-        Component rendered = render(message, amount, currencyName);
-        if (rendered != null) {
-            onMainThreadIfOnline(user, () -> user.sendMessage(rendered));
-        }
     }
 
     /**
