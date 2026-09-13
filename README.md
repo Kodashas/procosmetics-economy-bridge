@@ -23,8 +23,8 @@ pushed back onto the main thread first.
 
 ## Requirements
 
-- Paper or a Paper fork on Minecraft 1.21+ (built against `paper-api` 26.2)
-- Java 21 or newer on the server. The jar targets 21, so it also runs on 25.
+- Paper or a Paper fork, Minecraft 26.1+ (ProCosmetics 2.0.7 requirement; built against `paper-api` 26.2)
+- Java 25+ on the server — required by ProCosmetics 2.0.7 itself. This plugin targets release 21, so it runs on anything from 21 upwards.
 - [ProCosmetics](https://www.spigotmc.org/resources/procosmetics-350-cosmetics-treasure-chests.137754/)
 - [ExcellentEconomy](https://modrinth.com/plugin/excellenteconomy), and nightcore which it depends on
 
@@ -62,7 +62,7 @@ enable with a clear error instead of failing later in front of a player.
 
 ## Building
 
-ProCosmetics, ExcellentEconomy and nightcore are not published to any public Maven repository,
+ProCosmetics, ExcellentEconomy and nightcore are free, but none of them is published to a Maven repository,
 so they cannot be resolved automatically. Supply them from a server that has them installed:
 
 ```bash
