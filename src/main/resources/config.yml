@@ -10,9 +10,5 @@ currency-name: coins
 # Placeholders: <amount>, <currency>
 purchase-success-message: <green>Paid <yellow><amount> <currency></yellow><green>.</green>
 
-# Sent when the withdrawal fails even though ProCosmetics thought the player could pay.
-# Leave empty to send nothing.
-withdraw-failure-message: <red>Could not take <yellow><amount> <currency></yellow><red>. Try again or contact an admin.</red>
-
 # Logs every balance operation at INFO. Leave off in production.
 debug: false

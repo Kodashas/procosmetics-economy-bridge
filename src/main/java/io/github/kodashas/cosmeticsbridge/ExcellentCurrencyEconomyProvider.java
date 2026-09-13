@@ -37,7 +37,6 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
     private final String currencyId;
     private final String currencyName;
     private final String purchaseSuccessMessage;
-    private final String withdrawFailureMessage;
     private final boolean debug;
     private final JavaPlugin plugin;
 
@@ -46,7 +45,6 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
             ExcellentCurrency currency,
             String currencyName,
             String purchaseSuccessMessage,
-            String withdrawFailureMessage,
             boolean debug,
             JavaPlugin plugin) {
         this.economy = economy;
@@ -54,7 +52,6 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
         this.currencyId = currency.getId();
         this.currencyName = currencyName;
         this.purchaseSuccessMessage = purchaseSuccessMessage;
-        this.withdrawFailureMessage = withdrawFailureMessage;
         this.debug = debug;
         this.plugin = plugin;
     }
@@ -166,34 +163,34 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
     }
 
     private void announceWithdraw(User user, int amount, boolean success) {
-        sendMessage(user, success ? purchaseSuccessMessage : withdrawFailureMessage, amount);
-        if (!success) {
-            // No balance lookup here on purpose: this runs on whichever thread completed the
-            // withdrawal, and reading the balance again would touch the server off-thread.
-            plugin.getLogger().log(
-                    Level.WARNING,
-                    "Failed to withdraw {0} {1} for a ProCosmetics purchase by {2}",
-                    new Object[] {amount, currencyId, user.getUniqueId()});
+        if (success) {
+            sendMessage(user, purchaseSuccessMessage, amount);
+            return;
         }
+        // Nothing is sent to the player here: ProCosmetics' purchase menu already calls
+        // sendInsufficientCoinsMessage from its own completion handler, so a second message
+        // would double up. No balance lookup either — this runs on whichever thread completed
+        // the withdrawal.
+        plugin.getLogger().log(
+                Level.WARNING,
+                "Failed to withdraw {0} {1} for a ProCosmetics purchase by {2}",
+                new Object[] {amount, currencyId, user.getUniqueId()});
     }
 
     @Override
     public void sendInsufficientCoinsMessage(User user, int amount) {
         // getCoins() reads the balance and may look the player up, so it runs on the main
         // thread together with the message rather than on whatever thread called us.
-        runOnMainThread(() -> {
-            int missing = Math.max(amount - getCoins(user), 0);
-            user.sendMessage(user.translate(
-                    "player.not_enough_coins",
-                    Placeholder.unparsed("amount", String.valueOf(missing)),
-                    Placeholder.unparsed("currency", currencyName)));
-        });
+        onMainThreadIfOnline(user, () -> user.sendMessage(user.translate(
+                "player.not_enough_coins",
+                Placeholder.unparsed("amount", String.valueOf(Math.max(amount - getCoins(user), 0))),
+                Placeholder.unparsed("currency", currencyName))));
     }
 
     private void sendMessage(User user, String message, int amount) {
         Component rendered = render(message, amount, currencyName);
         if (rendered != null) {
-            runOnMainThread(() -> user.sendMessage(rendered));
+            onMainThreadIfOnline(user, () -> user.sendMessage(rendered));
         }
     }
 
@@ -212,6 +209,21 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
                 message,
                 Placeholder.unparsed("amount", String.valueOf(amount)),
                 Placeholder.unparsed("currency", currencyName));
+    }
+
+    /**
+     * Runs {@code action} on the main thread, but only while the player is still online.
+     *
+     * <p>ProCosmetics resolves the player by UUID inside {@code User#sendMessage} and does not
+     * guard against a null one, so messaging a player who logged off between the operation
+     * completing and this task running throws.
+     */
+    private void onMainThreadIfOnline(User user, Runnable action) {
+        runOnMainThread(() -> {
+            if (user.getPlayer() != null) {
+                action.run();
+            }
+        });
     }
 
     private void runOnMainThread(Runnable action) {

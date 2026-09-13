@@ -22,9 +22,6 @@ public final class EconomyBridgePlugin extends JavaPlugin {
     private static final String DEFAULT_CURRENCY_NAME = "coins";
     private static final String DEFAULT_PURCHASE_SUCCESS =
             "<green>Paid <yellow><amount> <currency></yellow><green>.</green>";
-    private static final String DEFAULT_WITHDRAW_FAILURE =
-            "<red>Could not take <yellow><amount> <currency></yellow><red>."
-                    + " Try again or contact an admin.</red>";
 
     @Override
     public void onEnable() {
@@ -42,8 +39,6 @@ public final class EconomyBridgePlugin extends JavaPlugin {
 
         String purchaseSuccessMessage =
                 getConfig().getString("purchase-success-message", DEFAULT_PURCHASE_SUCCESS);
-        String withdrawFailureMessage =
-                getConfig().getString("withdraw-failure-message", DEFAULT_WITHDRAW_FAILURE);
         boolean debug = getConfig().getBoolean("debug", false);
 
         // Resolved here, before registering: ProCosmetics' register() only stores the provider
@@ -58,7 +53,6 @@ public final class EconomyBridgePlugin extends JavaPlugin {
                 currency,
                 currencyName,
                 purchaseSuccessMessage,
-                withdrawFailureMessage,
                 debug,
                 this));
 

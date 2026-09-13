@@ -42,7 +42,6 @@ plugin without them.
 currency-id: coins
 currency-name: coins
 purchase-success-message: <green>Paid <yellow><amount> <currency></yellow><green>.</green>
-withdraw-failure-message: <red>Could not take <yellow><amount> <currency></yellow><red>. Try again or contact an admin.</red>
 debug: false
 ```
 
@@ -51,10 +50,12 @@ debug: false
 | `currency-id` | Currency id as configured in ExcellentEconomy |
 | `currency-name` | How the currency is written in messages, in whatever grammatical form your language needs |
 | `purchase-success-message` | MiniMessage, sent after a successful purchase |
-| `withdraw-failure-message` | MiniMessage, sent when the withdrawal fails. Empty sends nothing |
 | `debug` | Logs every balance operation at INFO |
 
-Both messages support `<amount>` and `<currency>`.
+The message supports `<amount>` and `<currency>`.
+
+Nothing is sent when a withdrawal fails: ProCosmetics already messages the player from its
+own purchase menu, so a second message would double up. The failure is logged at WARNING.
 
 The "not enough coins" message is deliberately **not** configured here. It comes from
 ProCosmetics' own `player.not_enough_coins` translation key, fed the same two placeholders, so
