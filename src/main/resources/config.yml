@@ -1,0 +1,18 @@
+# Id of the ExcellentEconomy currency that ProCosmetics purchases are charged against.
+# Must match a currency configured in ExcellentEconomy.
+currency-id: coins
+
+# How the currency is named inside messages, in whatever grammatical form your
+# language needs. Used for the <currency> placeholder.
+currency-name: coins
+
+# Sent after a successful purchase. MiniMessage format.
+# Placeholders: <amount>, <currency>
+purchase-success-message: <green>Paid <yellow><amount> <currency></yellow><green>.</green>
+
+# Sent when the withdrawal fails even though ProCosmetics thought the player could pay.
+# Leave empty to send nothing.
+withdraw-failure-message: <red>Could not take <yellow><amount> <currency></yellow><red>. Try again or contact an admin.</red>
+
+# Logs every balance operation at INFO. Leave off in production.
+debug: false

@@ -1,0 +1,7 @@
+name: ProCosmeticsEconomyBridge
+version: '${project.version}'
+main: lt.mczeme.lobby.cosmeticsbridge.EconomyBridgePlugin
+api-version: '1.21'
+authors: [Kodashas]
+depend: [ProCosmetics, ExcellentEconomy]
+description: Charges ProCosmetics purchases against an ExcellentEconomy currency.
