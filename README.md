@@ -25,8 +25,8 @@ pushed back onto the main thread first.
 
 - Paper or a Paper fork on Minecraft 1.21+ (built against `paper-api` 26.2)
 - Java 21 or newer on the server. The jar targets 21, so it also runs on 25.
-- ProCosmetics
-- ExcellentEconomy, and nightcore which it depends on
+- [ProCosmetics](https://www.spigotmc.org/resources/procosmetics-350-cosmetics-treasure-chests.137754/)
+- [ExcellentEconomy](https://modrinth.com/plugin/excellenteconomy), and nightcore which it depends on
 
 Both plugins are hard dependencies in `plugin.yml`, so the server refuses to enable this
 plugin without them.
