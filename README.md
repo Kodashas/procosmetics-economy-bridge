@@ -85,6 +85,17 @@ resolved by Maven.
 
 Output: `target/ProCosmeticsEconomyBridge-1.0.0.jar`.
 
+There is one self-check, covering message rendering — the only part that runs without a
+server. It asserts that both placeholders are substituted, that a blank template sends
+nothing, and that a currency name containing markup is inserted as text rather than parsed as
+a MiniMessage tag:
+
+```bash
+scripts/check.sh
+```
+
+It prints `RenderCheck: ok` and exits 0 when everything holds.
+
 ## Installing
 
 Drop the jar into `plugins/` and restart. Set `currency-id` to match your ExcellentEconomy

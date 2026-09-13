@@ -6,6 +6,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.logging.Level;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
@@ -190,13 +191,27 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
     }
 
     private void sendMessage(User user, String message, int amount) {
-        if (message == null || message.isEmpty()) {
-            return;
+        Component rendered = render(message, amount, currencyName);
+        if (rendered != null) {
+            runOnMainThread(() -> user.sendMessage(rendered));
         }
-        runOnMainThread(() -> user.sendMessage(MINI_MESSAGE.deserialize(
+    }
+
+    /**
+     * Renders a configured MiniMessage template, or returns {@code null} when the template is
+     * blank — an operator empties a message to turn it off.
+     *
+     * <p>Package-private and free of Bukkit so it can be exercised on its own; see
+     * {@code RenderCheck} in the test sources.
+     */
+    static Component render(String message, int amount, String currencyName) {
+        if (message == null || message.isEmpty()) {
+            return null;
+        }
+        return MINI_MESSAGE.deserialize(
                 message,
                 Placeholder.unparsed("amount", String.valueOf(amount)),
-                Placeholder.unparsed("currency", currencyName))));
+                Placeholder.unparsed("currency", currencyName));
     }
 
     private void runOnMainThread(Runnable action) {
