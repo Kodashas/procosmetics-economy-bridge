@@ -23,8 +23,8 @@ pushed back onto the main thread first.
 
 ## Requirements
 
-- Paper or a Paper fork, 1.21+
-- Java 21
+- Paper or a Paper fork on Minecraft 1.21+ (built against `paper-api` 26.2)
+- Java 21 or newer on the server. The jar targets 21, so it also runs on 25.
 - ProCosmetics
 - ExcellentEconomy, and nightcore which it depends on
 
