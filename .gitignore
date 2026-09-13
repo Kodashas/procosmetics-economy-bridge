@@ -1,6 +1,5 @@
 target/
-libs/*.jar
-!libs/.gitkeep
 .idea/
 *.iml
 .vscode/
+libs/

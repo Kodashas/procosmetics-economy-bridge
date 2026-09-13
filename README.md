@@ -78,24 +78,26 @@ front of a player.
 
 ## Building
 
-All three plugins this compiles against are free to download, but none of them publishes to a
-Maven repository, so they cannot be resolved automatically. Put their jars in `libs/` first.
-
-The easiest source is a server that already runs them:
+Every dependency resolves from a public Maven repository, so a clone builds on its own:
 
 ```bash
-scripts/fetch-libs.sh /path/to/server/plugins
 mvn clean package
 ```
 
-Otherwise download them by hand and name them `libs/ProCosmetics.jar`,
-`libs/ExcellentEconomy.jar` and `libs/nightcore.jar`.
+`paper-api` comes from the PaperMC repository, `procosmetics-api` from `repo.filledev.se`,
+`ExcellentEconomy` and nightcore from `repo.nightexpressdev.com`, and fastutil from Maven
+Central. Nothing has to be copied out of a server's `plugins` folder.
 
-`libs/` is gitignored — those are other people's plugins and are not redistributed here.
-`paper-api` comes from the PaperMC repository and fastutil from Maven Central; both are
-resolved by Maven.
+ProCosmetics publishes only its API module, and that module lags the plugin: 2.0.1 is the
+newest one on the repository while the plugin is at 2.0.7. Every type this bridge touches has
+an identical signature in both, so it compiles against 2.0.1 — worth re-checking before moving
+to a newer ProCosmetics.
 
-Output: `target/ProCosmeticsEconomyBridge-1.0.0.jar`.
+Output: `target/ProCosmeticsEconomyBridge-1.0.1.jar`.
+
+GitHub Actions runs the same build on every push and pull request. Pushing a `v*` tag makes it
+build from that tag and attach the jar to the matching release, so a release asset always comes
+from the commit the tag points at.
 
 There is one self-check, covering message rendering — the only part that runs without a
 server. It asserts that both placeholders are substituted, that a blank template sends

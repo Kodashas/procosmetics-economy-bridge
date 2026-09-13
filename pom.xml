@@ -23,6 +23,14 @@
       <id>papermc</id>
       <url>https://repo.papermc.io/repository/maven-public/</url>
     </repository>
+    <repository>
+      <id>filledev</id>
+      <url>https://repo.filledev.se/releases</url>
+    </repository>
+    <repository>
+      <id>nightexpress</id>
+      <url>https://repo.nightexpressdev.com/releases</url>
+    </repository>
   </repositories>
 
   <dependencies>
@@ -34,32 +42,40 @@
       <scope>provided</scope>
     </dependency>
 
-    <!-- Supplied locally by scripts/fetch-libs.sh; not on any public repository. -->
+    <!--
+      ProCosmetics publishes only its API module, and it lags the plugin: 2.0.1 is the newest
+      one on the repository while the plugin itself is at 2.0.7. Every type this bridge touches
+      has an identical signature in both, so compiling against 2.0.1 is safe; check that again
+      before moving to a newer ProCosmetics.
+    -->
     <dependency>
       <groupId>se.filledev</groupId>
-      <artifactId>procosmetics</artifactId>
-      <version>local</version>
-      <scope>system</scope>
-      <systemPath>${project.basedir}/libs/ProCosmetics.jar</systemPath>
+      <artifactId>procosmetics-api</artifactId>
+      <version>2.0.1</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>su.nightexpress</groupId>
-      <artifactId>excellenteconomy</artifactId>
-      <version>local</version>
-      <scope>system</scope>
-      <systemPath>${project.basedir}/libs/ExcellentEconomy.jar</systemPath>
+      <groupId>su.nightexpress.excellenteconomy</groupId>
+      <artifactId>ExcellentEconomy</artifactId>
+      <version>2.8.0</version>
+      <scope>provided</scope>
     </dependency>
+    <!--
+      nightcore is published as a multi-module build and its pom carries no dependencies of its
+      own, so the module holding NightPlugin and the placeholder types has to be named directly.
+      ExcellentEconomy's own pom lists no dependencies either, hence both are declared here.
+    -->
     <dependency>
-      <groupId>su.nightexpress</groupId>
-      <artifactId>nightcore</artifactId>
-      <version>local</version>
-      <scope>system</scope>
-      <systemPath>${project.basedir}/libs/nightcore.jar</systemPath>
+      <groupId>su.nightexpress.nightcore</groupId>
+      <artifactId>main</artifactId>
+      <version>2.16.4</version>
+      <scope>provided</scope>
     </dependency>
+    <!-- Only BooleanIntPair, through the ProCosmetics API. Kept in step with what it compiles against. -->
     <dependency>
       <groupId>it.unimi.dsi</groupId>
       <artifactId>fastutil</artifactId>
-      <version>8.5.13</version>
+      <version>8.5.18</version>
       <scope>provided</scope>
     </dependency>
   </dependencies>
