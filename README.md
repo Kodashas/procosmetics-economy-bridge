@@ -60,9 +60,9 @@ The "not enough coins" message is deliberately **not** configured here. It comes
 ProCosmetics' own `player.not_enough_coins` translation key, fed the same two placeholders, so
 it follows your ProCosmetics language file and stays consistent with its other menus.
 
-The currency is resolved when ProCosmetics registers the provider, during enable. A wrong
-`currency-id` therefore fails the enable with a clear error instead of failing later, in front
-of a player.
+The currency is resolved during enable, before the provider is registered. A wrong
+`currency-id` therefore fails the enable with a clear error instead of surfacing later, in
+front of a player.
 
 ## Building
 

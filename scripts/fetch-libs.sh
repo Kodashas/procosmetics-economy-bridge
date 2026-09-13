@@ -1,7 +1,7 @@
 #!/bin/bash
-# Copies the two proprietary API jars this project compiles against out of a running
-# server's plugins directory into libs/. They are never committed - they are paid
-# plugins and redistributing them is not ours to do.
+# Copies the three API jars this project compiles against out of a running
+# server's plugins directory into libs/. They are never committed - they are other
+# people's plugins and redistributing them is not ours to do.
 #
 # Usage: scripts/fetch-libs.sh /path/to/server/plugins
 

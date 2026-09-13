@@ -7,6 +7,7 @@ import se.filledev.procosmetics.api.ProCosmetics;
 import se.filledev.procosmetics.api.ProCosmeticsProvider;
 import su.nightexpress.excellenteconomy.EconomyPlugin;
 import su.nightexpress.excellenteconomy.api.ExcellentEconomyAPI;
+import su.nightexpress.excellenteconomy.api.currency.ExcellentCurrency;
 
 /**
  * Bridges ProCosmetics' economy to an ExcellentEconomy currency, so cosmetics are
@@ -45,11 +46,16 @@ public final class EconomyBridgePlugin extends JavaPlugin {
                 getConfig().getString("withdraw-failure-message", DEFAULT_WITHDRAW_FAILURE);
         boolean debug = getConfig().getBoolean("debug", false);
 
-        // register() makes ProCosmetics call hook(), which resolves the currency, so a bad
-        // currency-id fails the enable instead of failing later on a player's purchase.
+        // Resolved here, before registering: ProCosmetics' register() only stores the provider
+        // and never calls hook(), so a bad currency-id has to fail the enable right here or it
+        // would surface as a null currency the first time a player opens the cosmetics menu.
+        ExcellentCurrency currency = excellentEconomy.currencyById(currencyId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "ExcellentEconomy has no currency with id '" + currencyId + "'."));
+
         proCosmetics.getEconomyManager().register(new ExcellentCurrencyEconomyProvider(
                 excellentEconomy,
-                currencyId,
+                currency,
                 currencyName,
                 purchaseSuccessMessage,
                 withdrawFailureMessage,

@@ -1,6 +1,7 @@
 package io.github.kodashas.cosmeticsbridge;
 
 import it.unimi.dsi.fastutil.booleans.BooleanIntPair;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -32,6 +33,7 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
 
     private final ExcellentEconomyAPI economy;
+    private final ExcellentCurrency currency;
     private final String currencyId;
     private final String currencyName;
     private final String purchaseSuccessMessage;
@@ -39,19 +41,17 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
     private final boolean debug;
     private final JavaPlugin plugin;
 
-    /** Resolved in {@link #hook(ProCosmetics)}, which ProCosmetics calls on registration. */
-    private ExcellentCurrency currency;
-
     ExcellentCurrencyEconomyProvider(
             ExcellentEconomyAPI economy,
-            String currencyId,
+            ExcellentCurrency currency,
             String currencyName,
             String purchaseSuccessMessage,
             String withdrawFailureMessage,
             boolean debug,
             JavaPlugin plugin) {
         this.economy = economy;
-        this.currencyId = currencyId;
+        this.currency = Objects.requireNonNull(currency, "currency");
+        this.currencyId = currency.getId();
         this.currencyName = currencyName;
         this.purchaseSuccessMessage = purchaseSuccessMessage;
         this.withdrawFailureMessage = withdrawFailureMessage;
@@ -65,15 +65,15 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
     }
 
     /**
-     * Called by ProCosmetics when the provider is registered.
-     *
-     * @throws IllegalStateException if ExcellentEconomy has no currency with the configured
-     *     id, so a typo fails the enable instead of failing in front of a player later
+     * Never called for a provider registered through {@code EconomyManager#register}: that
+     * method only stores the provider, and ProCosmetics' single {@code hook()} call site runs
+     * during its own enable, before this plugin loads. The currency is therefore resolved in
+     * {@link EconomyBridgePlugin#onEnable()} instead. The method stays because the interface
+     * declares it.
      */
     @Override
-    public void hook(ProCosmetics proCosmetics) throws IllegalStateException {
-        this.currency = economy.currencyById(currencyId).orElseThrow(() -> new IllegalStateException(
-                "ExcellentEconomy has no currency with id '" + currencyId + "'."));
+    public void hook(ProCosmetics proCosmetics) {
+        // Nothing to do.
     }
 
     /**
@@ -217,8 +217,11 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
     private void runOnMainThread(Runnable action) {
         if (Bukkit.isPrimaryThread()) {
             action.run();
-        } else {
+        } else if (plugin.isEnabled()) {
             Bukkit.getScheduler().runTask(plugin, action);
         }
+        // Dropped when the plugin is already disabled: scheduling then throws
+        // IllegalPluginAccessException, and an async operation completing during shutdown
+        // has nobody left to message anyway.
     }
 }
