@@ -1,6 +1,6 @@
 # ProCosmetics Economy Bridge
 
-Makes [ProCosmetics](https://www.spigotmc.org/resources/procosmetics.35361/) charge cosmetic
+Makes [ProCosmetics](https://www.spigotmc.org/resources/procosmetics.49106/) charge cosmetic
 purchases against an **ExcellentEconomy** currency instead of its own internal coin balance.
 
 If your server already runs ExcellentEconomy and you want cosmetics paid for with a currency
