@@ -99,16 +99,25 @@ GitHub Actions runs the same build on every push and pull request. Pushing a `v*
 build from that tag and attach the jar to the matching release, so a release asset always comes
 from the commit the tag points at.
 
-There is one self-check, covering message rendering — the only part that runs without a
-server. It asserts that both placeholders are substituted, that a blank template sends
-nothing, and that a currency name containing markup is inserted as text rather than parsed as
-a MiniMessage tag:
+Two self-checks run without a server:
 
 ```bash
 scripts/check.sh
 ```
 
-It prints `RenderCheck: ok` and exits 0 when everything holds.
+`RenderCheck` covers message rendering: that both placeholders are substituted, that a blank
+template sends nothing, and that a currency name containing markup is inserted as text rather
+than parsed as a MiniMessage tag.
+
+`EconomyCheck` covers the offline balance paths, which is where the money is: that a
+withdrawal larger than the balance is refused instead of clamped, that a storage failure
+answers "no" rather than escaping as an exceptional future, and that a balance which could not
+be read is never mistaken for a player holding zero coins. Everything it stands in for —
+ExcellentEconomy, ProCosmetics, Bukkit — is a plain interface behind a JDK proxy, so neither a
+mocking library nor a test framework is involved. The online paths stay uncovered; they need a
+live `Player`.
+
+Both print `<name>: ok` and the script exits 0 when everything holds.
 
 ## Installing
 

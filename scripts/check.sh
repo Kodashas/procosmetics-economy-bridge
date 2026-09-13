@@ -1,5 +1,5 @@
 #!/bin/bash
-# Runs the message-rendering self-check with assertions enabled.
+# Runs the self-checks with assertions enabled.
 # Usage: scripts/check.sh   (runs mvn test-compile itself)
 
 set -euo pipefail
@@ -13,6 +13,8 @@ MVN="${MVN:-mvn}"
 SEP=":"
 case "${OS:-}" in Windows_NT) SEP=";" ;; esac
 
-exec java -ea \
-  -cp "target/test-classes${SEP}target/classes${SEP}$(cat target/cp.txt)" \
-  io.github.kodashas.cosmeticsbridge.RenderCheck
+CP="target/test-classes${SEP}target/classes${SEP}$(cat target/cp.txt)"
+
+for check in RenderCheck EconomyCheck; do
+  java -ea -cp "$CP" "io.github.kodashas.cosmeticsbridge.$check"
+done

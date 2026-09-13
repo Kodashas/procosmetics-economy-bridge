@@ -2,10 +2,11 @@ package io.github.kodashas.cosmeticsbridge;
 
 import java.util.Objects;
 import net.kyori.adventure.text.Component;
+import org.bukkit.Bukkit;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 import se.filledev.procosmetics.api.ProCosmetics;
 import se.filledev.procosmetics.api.ProCosmeticsProvider;
@@ -13,7 +14,6 @@ import se.filledev.procosmetics.api.event.PlayerPurchaseCosmeticEvent;
 import se.filledev.procosmetics.api.event.PlayerPurchaseGadgetAmmoEvent;
 import se.filledev.procosmetics.api.event.PlayerPurchaseTreasureChestEvent;
 import se.filledev.procosmetics.api.user.User;
-import su.nightexpress.excellenteconomy.EconomyPlugin;
 import su.nightexpress.excellenteconomy.api.ExcellentEconomyAPI;
 import su.nightexpress.excellenteconomy.api.currency.ExcellentCurrency;
 
@@ -70,7 +70,9 @@ public final class EconomyBridgePlugin extends JavaPlugin implements Listener {
                 currency,
                 currencyName,
                 debug,
-                this));
+                getLogger(),
+                Bukkit::getPlayer,
+                this::runOnMainThread));
 
         getServer().getPluginManager().registerEvents(this, this);
 
@@ -106,11 +108,34 @@ public final class EconomyBridgePlugin extends JavaPlugin implements Listener {
         }
     }
 
-    private ExcellentEconomyAPI getExcellentEconomyApi() {
-        Plugin plugin = getServer().getPluginManager().getPlugin("ExcellentEconomy");
-        if (!(plugin instanceof EconomyPlugin economyPlugin)) {
-            throw new IllegalStateException("ExcellentEconomy plugin was not found or has an unexpected main class.");
+    /**
+     * Runs {@code action} on the main thread, straight away when already there.
+     *
+     * <p>A task is dropped once this plugin is disabled: scheduling then throws
+     * {@code IllegalPluginAccessException}, and an operation completing during shutdown has
+     * nobody left to message anyway.
+     */
+    private void runOnMainThread(Runnable action) {
+        if (Bukkit.isPrimaryThread()) {
+            action.run();
+        } else if (isEnabled()) {
+            getServer().getScheduler().runTask(this, action);
         }
-        return economyPlugin.getAPI();
+    }
+
+    /**
+     * ExcellentEconomy registers its API with the Bukkit service manager while it enables, and
+     * that is the contract its own documentation points integrations at. Reading it from there
+     * rather than casting the plugin to {@code EconomyPlugin} keeps this off ExcellentEconomy's
+     * main class, which is free to change without the API changing.
+     */
+    private ExcellentEconomyAPI getExcellentEconomyApi() {
+        RegisteredServiceProvider<ExcellentEconomyAPI> registration =
+                getServer().getServicesManager().getRegistration(ExcellentEconomyAPI.class);
+        if (registration == null) {
+            throw new IllegalStateException(
+                    "ExcellentEconomy has not registered its API with the Bukkit service manager.");
+        }
+        return registration.getProvider();
     }
 }

@@ -7,12 +7,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
+
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.java.JavaPlugin;
+import java.util.function.Consumer;
 import se.filledev.procosmetics.api.ProCosmetics;
 import se.filledev.procosmetics.api.economy.EconomyProvider;
 import se.filledev.procosmetics.api.user.User;
@@ -40,20 +41,33 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
     private final String currencyId;
     private final String currencyName;
     private final boolean debug;
-    private final JavaPlugin plugin;
+    private final Logger logger;
+
+    /**
+     * How an online player is found, normally {@code Bukkit::getPlayer}, and how work is moved
+     * onto the main thread. Both are passed in rather than reached through Bukkit statics, so
+     * the balance paths can run without a server behind them; see {@code EconomyCheck} in the
+     * test sources.
+     */
+    private final Function<UUID, Player> onlinePlayer;
+    private final Consumer<Runnable> mainThread;
 
     ExcellentCurrencyEconomyProvider(
             ExcellentEconomyAPI economy,
             ExcellentCurrency currency,
             String currencyName,
             boolean debug,
-            JavaPlugin plugin) {
+            Logger logger,
+            Function<UUID, Player> onlinePlayer,
+            Consumer<Runnable> mainThread) {
         this.economy = economy;
         this.currency = Objects.requireNonNull(currency, "currency");
         this.currencyId = currency.getId();
         this.currencyName = currencyName;
         this.debug = debug;
-        this.plugin = plugin;
+        this.logger = Objects.requireNonNull(logger, "logger");
+        this.onlinePlayer = Objects.requireNonNull(onlinePlayer, "onlinePlayer");
+        this.mainThread = Objects.requireNonNull(mainThread, "mainThread");
     }
 
     @Override
@@ -83,14 +97,14 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
      */
     @Override
     public int getCoins(User user) {
-        Player player = Bukkit.getPlayer(user.getUniqueId());
+        Player player = onlinePlayer.apply(user.getUniqueId());
         if (player != null) {
             return (int) economy.getBalance(player, currency);
         }
         return economy.getCachedUserData(user.getUniqueId())
                 .map(data -> (int) data.getBalance(currency))
                 .orElseGet(() -> {
-                    plugin.getLogger().log(
+                    logger.log(
                             Level.WARNING,
                             "No cached {0} balance for offline user {1}; reporting 0 to ProCosmetics",
                             new Object[] {currencyId, user.getUniqueId()});
@@ -100,13 +114,19 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
 
     @Override
     public CompletableFuture<BooleanIntPair> getCoinsAsync(User user) {
-        Player player = Bukkit.getPlayer(user.getUniqueId());
+        Player player = onlinePlayer.apply(user.getUniqueId());
         if (player != null) {
             return CompletableFuture.completedFuture(
                     BooleanIntPair.of(true, (int) economy.getBalance(player, currency)));
         }
-        return economy.getBalanceAsync(user.getUniqueId(), currency)
-                .thenApply(balance -> BooleanIntPair.of(true, (int) (double) balance));
+        return failSafe(
+                economy.getBalanceAsync(user.getUniqueId(), currency)
+                        .thenApply(balance -> BooleanIntPair.of(true, (int) (double) balance)),
+                "balance-lookup",
+                user,
+                // The false says "no answer", which ProCosmetics' hasCoinsAsync reads as
+                // "cannot afford it" — the safe way to fail a balance the storage never gave us.
+                BooleanIntPair.of(false, 0));
     }
 
     @Override
@@ -140,23 +160,27 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
         // ponytail: check-then-withdraw, not one atomic operation. A balance change that lands
         // between the two still slips through; closing that needs a withdrawIfEnough() on the
         // ExcellentEconomy side.
-        Player player = Bukkit.getPlayer(user.getUniqueId());
+        Player player = onlinePlayer.apply(user.getUniqueId());
         if (player != null) {
             boolean enough = economy.getBalance(player, currency) >= amount;
             return CompletableFuture.completedFuture(withdrawn(
                     user, amount, enough && economy.withdraw(player, currency, amount)));
         }
         UUID uuid = user.getUniqueId();
-        return economy.getBalanceAsync(uuid, currency)
-                .thenCompose(balance -> balance >= amount
-                        ? economy.withdrawAsync(uuid, currency, amount)
-                        : CompletableFuture.completedFuture(OperationResult.FAILURE))
-                .thenApply(result -> withdrawn(user, amount, result == OperationResult.SUCCESS));
+        return failSafe(
+                economy.getBalanceAsync(uuid, currency)
+                        .thenCompose(balance -> balance >= amount
+                                ? economy.withdrawAsync(uuid, currency, amount)
+                                : CompletableFuture.completedFuture(OperationResult.FAILURE))
+                        .thenApply(result -> withdrawn(user, amount, result == OperationResult.SUCCESS)),
+                "withdraw",
+                user,
+                false);
     }
 
     private boolean withdrawn(User user, int amount, boolean success) {
         if (!success) {
-            plugin.getLogger().log(
+            logger.log(
                     Level.WARNING,
                     "Failed to withdraw {0} {1} from {2}",
                     new Object[] {amount, currencyId, user.getUniqueId()});
@@ -174,17 +198,40 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
             String action,
             Predicate<Player> online,
             Function<UUID, CompletableFuture<OperationResult>> offline) {
-        Player player = Bukkit.getPlayer(user.getUniqueId());
+        Player player = onlinePlayer.apply(user.getUniqueId());
         if (player != null) {
             return CompletableFuture.completedFuture(logged(user, amount, action, online.test(player)));
         }
-        return offline.apply(user.getUniqueId())
-                .thenApply(result -> logged(user, amount, action, result == OperationResult.SUCCESS));
+        return failSafe(
+                offline.apply(user.getUniqueId())
+                        .thenApply(result -> logged(user, amount, action, result == OperationResult.SUCCESS)),
+                action,
+                user,
+                false);
+    }
+
+    /**
+     * Turns a failed storage operation into a logged, false-ish answer.
+     *
+     * <p>Without this the exception travels on as an exceptional future. ProCosmetics consumes
+     * these with {@code thenAccept}, which drops it silently: the player would see nothing
+     * happen and the server log would hold no record of why.
+     */
+    private <T> CompletableFuture<T> failSafe(
+            CompletableFuture<T> future, String action, User user, T fallback) {
+        return future.exceptionally(error -> {
+            logger.log(
+                    Level.SEVERE,
+                    error,
+                    () -> "ExcellentEconomy " + action + " failed for currency " + currencyId
+                            + " and user " + user.getUniqueId());
+            return fallback;
+        });
     }
 
     private boolean logged(User user, int amount, String action, boolean success) {
         if (debug) {
-            plugin.getLogger().log(
+            logger.log(
                     Level.INFO,
                     "[debug] action={0}, currency={1}, user={2}, amount={3}, outcome={4}",
                     new Object[] {action, currencyId, user.getUniqueId(), amount, success ? "SUCCESS" : "FAILURE"});
@@ -227,21 +274,10 @@ final class ExcellentCurrencyEconomyProvider implements EconomyProvider {
      * completing and this task running throws.
      */
     private void onMainThreadIfOnline(User user, Runnable action) {
-        runOnMainThread(() -> {
+        mainThread.accept(() -> {
             if (user.getPlayer() != null) {
                 action.run();
             }
         });
-    }
-
-    private void runOnMainThread(Runnable action) {
-        if (Bukkit.isPrimaryThread()) {
-            action.run();
-        } else if (plugin.isEnabled()) {
-            Bukkit.getScheduler().runTask(plugin, action);
-        }
-        // Dropped when the plugin is already disabled: scheduling then throws
-        // IllegalPluginAccessException, and an async operation completing during shutdown
-        // has nobody left to message anyway.
     }
 }
