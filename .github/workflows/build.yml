@@ -22,7 +22,7 @@ jobs:
 
       - run: mvn -B clean package
 
-      - name: Message-rendering self-check
+      - name: Self-checks
         run: bash scripts/check.sh
 
       - uses: actions/upload-artifact@v4
