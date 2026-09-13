@@ -109,13 +109,14 @@ scripts/check.sh
 template sends nothing, and that a currency name containing markup is inserted as text rather
 than parsed as a MiniMessage tag.
 
-`EconomyCheck` covers the offline balance paths, which is where the money is: that a
-withdrawal larger than the balance is refused instead of clamped, that a storage failure
-answers "no" rather than escaping as an exceptional future, and that a balance which could not
-be read is never mistaken for a player holding zero coins. Everything it stands in for —
-ExcellentEconomy, ProCosmetics, Bukkit — is a plain interface behind a JDK proxy, so neither a
-mocking library nor a test framework is involved. The online paths stay uncovered; they need a
-live `Player`.
+`EconomyCheck` covers the provider, which is where the money is: that a withdrawal larger than
+the balance is refused instead of clamped, online and offline alike; that an online player
+takes the synchronous path and an offline one the UUID-keyed path; that a storage failure
+answers "no" rather than escaping as an exceptional future; that a balance which could not be
+read is never mistaken for a player holding zero coins; and that nothing is sent to a player
+who has already logged off. Everything it stands in for — ExcellentEconomy, ProCosmetics, the
+Bukkit player — is a plain interface behind a JDK proxy, so neither a mocking library nor a
+test framework is involved.
 
 Both print `<name>: ok` and the script exits 0 when everything holds.
 
