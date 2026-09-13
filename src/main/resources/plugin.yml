@@ -1,6 +1,6 @@
 name: ProCosmeticsEconomyBridge
 version: '${project.version}'
-main: lt.mczeme.lobby.cosmeticsbridge.EconomyBridgePlugin
+main: io.github.kodashas.cosmeticsbridge.EconomyBridgePlugin
 api-version: '1.21'
 authors: [Kodashas]
 depend: [ProCosmetics, ExcellentEconomy]

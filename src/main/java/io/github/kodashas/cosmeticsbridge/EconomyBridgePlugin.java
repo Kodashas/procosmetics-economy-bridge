@@ -1,4 +1,4 @@
-package lt.mczeme.lobby.cosmeticsbridge;
+package io.github.kodashas.cosmeticsbridge;
 
 import java.util.Objects;
 import org.bukkit.plugin.Plugin;

@@ -1,4 +1,4 @@
-package lt.mczeme.lobby.cosmeticsbridge;
+package io.github.kodashas.cosmeticsbridge;
 
 import it.unimi.dsi.fastutil.booleans.BooleanIntPair;
 import java.util.concurrent.CompletableFuture;
